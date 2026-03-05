@@ -1,0 +1,1160 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+local Settings = {
+ForceTeleport = false,
+TweenTeleport = false,
+AutoUpdatePos = false,
+AntiCheatWarning = true,
+AutoAddPreset = true,
+SavePositionOnRespawn = false,
+InfiniteJump = false,
+SuperSpeed = false,
+HighJump = false,
+LogTeleports = false,
+ShowCoordinatesInTitle = false,
+AutoSaveLastPosition = false,
+CopyFormat = "xyz",
+ThemeColor = Color3.fromRGB(55, 120, 255)
+}
+
+local hasAntiCheat = false
+local lastDeathPosition = nil
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "TeleportPlusGui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = PlayerGui
+
+local container = Instance.new("Frame")
+container.Name = "Container"
+container.Size = UDim2.fromOffset(600, 200)
+container.Position = UDim2.new(0.5, -300, 0.12, 0)
+container.AnchorPoint = Vector2.new(0.5, 0)
+container.BackgroundTransparency = 0
+container.BackgroundColor3 = Color3.fromRGB(24, 26, 35)
+container.BorderSizePixel = 0
+container.Parent = screenGui
+
+local containerCorner = Instance.new("UICorner", container)
+containerCorner.CornerRadius = UDim.new(0, 10)
+
+local header = Instance.new("Frame")
+header.Name = "Header"
+header.Size = UDim2.new(1, 0, 0, 34)
+header.Position = UDim2.new(0, 0, 0, 0)
+header.BackgroundTransparency = 1
+header.Parent = container
+
+local title = Instance.new("TextLabel")
+title.Name = "Title"
+title.Size = UDim2.new(1, -140, 1, 0)
+title.Position = UDim2.new(0, 12, 0, 0)
+title.BackgroundTransparency = 1
+title.Font = Enum.Font.GothamBold
+title.TextSize = 15
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Text = "Teleport — paste coords and press Run"
+title.TextColor3 = Color3.fromRGB(230, 230, 230)
+title.Parent = header
+
+local btnTemplateProps = {
+ClassName = "TextButton",
+Size = UDim2.fromOffset(28, 22),
+BackgroundTransparency = 1,
+Font = Enum.Font.GothamBold,
+TextSize = 16,
+TextColor3 = Color3.fromRGB(235,235,235),
+Parent = header
+}
+
+local closeBtn = Instance.new(btnTemplateProps.ClassName)
+closeBtn.Size = btnTemplateProps.Size
+closeBtn.BackgroundTransparency = btnTemplateProps.BackgroundTransparency
+closeBtn.Font = btnTemplateProps.Font
+closeBtn.TextSize = btnTemplateProps.TextSize
+closeBtn.TextColor3 = btnTemplateProps.TextColor3
+closeBtn.Text = "✕"
+closeBtn.Position = UDim2.new(1, -34, 0, 6)
+closeBtn.Parent = header
+
+local miniBtn = Instance.new(btnTemplateProps.ClassName)
+miniBtn.Size = btnTemplateProps.Size
+miniBtn.BackgroundTransparency = btnTemplateProps.BackgroundTransparency
+miniBtn.Font = btnTemplateProps.Font
+miniBtn.TextSize = btnTemplateProps.TextSize
+miniBtn.TextColor3 = btnTemplateProps.TextColor3
+miniBtn.Text = "—"
+miniBtn.Position = UDim2.new(1, -68, 0, 6)
+miniBtn.Parent = header
+
+local settingsBtn = Instance.new(btnTemplateProps.ClassName)
+settingsBtn.Size = btnTemplateProps.Size
+settingsBtn.BackgroundTransparency = btnTemplateProps.BackgroundTransparency
+settingsBtn.Font = btnTemplateProps.Font
+settingsBtn.TextSize = btnTemplateProps.TextSize
+settingsBtn.TextColor3 = btnTemplateProps.TextColor3
+settingsBtn.Text = "⚙"
+settingsBtn.Position = UDim2.new(1, -102, 0, 6)
+settingsBtn.Parent = header
+
+local inputBox = Instance.new("TextBox")
+inputBox.Name = "Input"
+inputBox.PlaceholderText = "Paste coords here — examples: 'x,y,z' or 'x y z' or '(x, y, z)'"
+inputBox.Text = ""
+inputBox.ClearTextOnFocus = false
+inputBox.Font = Enum.Font.Gotham
+inputBox.TextSize = 14
+inputBox.TextColor3 = Color3.fromRGB(235,235,235)
+inputBox.TextWrapped = true
+inputBox.BackgroundColor3 = Color3.fromRGB(16, 18, 25)
+inputBox.BackgroundTransparency = 0
+inputBox.Size = UDim2.new(1, -232, 0, 56)
+inputBox.Position = UDim2.new(0, 224, 0, 38)
+inputBox.Parent = container
+
+local inputCorner = Instance.new("UICorner", inputBox)
+inputCorner.CornerRadius = UDim.new(0, 8)
+
+local runBtn = Instance.new("TextButton")
+runBtn.Name = "TP"
+runBtn.Size = UDim2.fromOffset(86, 36)
+runBtn.Position = UDim2.new(1, -8, 1, -8)
+runBtn.AnchorPoint = Vector2.new(1, 1)
+runBtn.Font = Enum.Font.GothamBold
+runBtn.TextSize = 16
+runBtn.Text = "TP"
+runBtn.TextColor3 = Color3.fromRGB(235,235,235)
+runBtn.BackgroundColor3 = Color3.fromRGB(55, 120, 255)
+runBtn.Parent = container
+
+local runCorner = Instance.new("UICorner", runBtn)
+runCorner.CornerRadius = UDim.new(0, 8)
+
+local updBtn = Instance.new("TextButton")
+updBtn.Name = "Upd"
+updBtn.Size = UDim2.fromOffset(120, 32)
+updBtn.Position = UDim2.new(0, 224, 1, -76)
+updBtn.Font = Enum.Font.GothamBold
+updBtn.TextSize = 14
+updBtn.Text = "Update position"
+updBtn.TextColor3 = Color3.fromRGB(235,235,235)
+updBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 75)
+updBtn.Parent = container
+
+local updCorner = Instance.new("UICorner", updBtn)
+updCorner.CornerRadius = UDim.new(0, 8)
+
+local playersBtn = Instance.new("TextButton")
+playersBtn.Name = "Players"
+playersBtn.Size = UDim2.fromOffset(120, 32)
+playersBtn.Position = UDim2.new(0, 352, 1, -76)
+playersBtn.Font = Enum.Font.GothamBold
+playersBtn.TextSize = 14
+playersBtn.Text = "Select Player"
+playersBtn.TextColor3 = Color3.fromRGB(235,235,235)
+playersBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 75)
+playersBtn.Parent = container
+
+local playersCorner = Instance.new("UICorner", playersBtn)
+playersCorner.CornerRadius = UDim.new(0, 8)
+
+local dropdownFrame = Instance.new("ScrollingFrame")
+dropdownFrame.Name = "PlayerDropdown"
+dropdownFrame.Size = UDim2.new(1, -232, 0, 100)
+dropdownFrame.Position = UDim2.new(0, 224, 0, 98)
+dropdownFrame.BackgroundColor3 = Color3.fromRGB(16, 18, 25)
+dropdownFrame.BorderSizePixel = 0
+dropdownFrame.ScrollBarThickness = 6
+dropdownFrame.Visible = false
+dropdownFrame.Parent = container
+
+local ddCorner = Instance.new("UICorner", dropdownFrame)
+ddCorner.CornerRadius = UDim.new(0, 8)
+
+local uiListLayout = Instance.new("UIListLayout", dropdownFrame)
+uiListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+uiListLayout.Padding = UDim.new(0, 2)
+
+local settingsFrame = Instance.new("ScrollingFrame")
+settingsFrame.Name = "Settings"
+settingsFrame.Size = UDim2.new(1, -232, 0, 140)
+settingsFrame.Position = UDim2.new(0, 224, 0, 98)
+settingsFrame.BackgroundColor3 = Color3.fromRGB(16, 18, 25)
+settingsFrame.Visible = false
+settingsFrame.ScrollBarThickness = 4
+settingsFrame.CanvasSize = UDim2.new(0, 0, 0, 400)
+settingsFrame.Parent = container
+
+local settingsCorner = Instance.new("UICorner", settingsFrame)
+settingsCorner.CornerRadius = UDim.new(0, 8)
+
+local settingsLayout = Instance.new("UIListLayout", settingsFrame)
+settingsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+settingsLayout.Padding = UDim.new(0, 8)
+
+local function createToggle(name, settingKey, parent, customCallback)
+local toggleFrame = Instance.new("Frame")
+toggleFrame.Size = UDim2.new(1, -8, 0, 28)
+toggleFrame.BackgroundTransparency = 1
+toggleFrame.Parent = parent
+ 
+local toggle = Instance.new("TextButton")
+toggle.Size = UDim2.new(0, 140, 1, 0)
+toggle.BackgroundColor3 = Color3.fromRGB(70, 70, 75)
+toggle.Text = name .. ": Off"
+toggle.Font = Enum.Font.Gotham
+toggle.TextSize = 12
+toggle.TextColor3 = Color3.fromRGB(235,235,235)
+local toggleCorner = Instance.new("UICorner", toggle)
+toggleCorner.CornerRadius = UDim.new(0, 6)
+toggle.Parent = toggleFrame
+ 
+local enabled = Settings[settingKey]
+toggle.Text = name .. ": " .. (enabled and "On" or "Off")
+toggle.BackgroundColor3 = enabled and Color3.fromRGB(55, 120, 255) or Color3.fromRGB(70, 70, 75)
+ 
+toggle.MouseButton1Click:Connect(function()
+enabled = not enabled
+Settings[settingKey] = enabled
+toggle.Text = name .. ": " .. (enabled and "On" or "Off")
+toggle.BackgroundColor3 = enabled and Color3.fromRGB(55, 120, 255) or Color3.fromRGB(70, 70, 75)
+if customCallback then
+customCallback(enabled)
+end
+end)
+ 
+return toggle
+end
+
+createToggle("Force Teleport", "ForceTeleport", settingsFrame)
+createToggle("Tween Teleport", "TweenTeleport", settingsFrame)
+createToggle("Auto Update Pos", "AutoUpdatePos", settingsFrame)
+createToggle("Anti-Cheat Warning", "AntiCheatWarning", settingsFrame)
+createToggle("Auto Add Preset", "AutoAddPreset", settingsFrame)
+createToggle("Respawn at Last Death", "SavePositionOnRespawn", settingsFrame)
+
+local devLabel = Instance.new("TextLabel")
+devLabel.Size = UDim2.new(1, -8, 0, 20)
+devLabel.BackgroundTransparency = 1
+devLabel.Font = Enum.Font.GothamBold
+devLabel.TextSize = 13
+devLabel.TextXAlignment = Enum.TextXAlignment.Left
+devLabel.Text = "Developer Tools:"
+devLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
+devLabel.Parent = settingsFrame
+
+createToggle("Show Coords in Title", "ShowCoordinatesInTitle", settingsFrame, function(enabled)
+if enabled then
+local char = LocalPlayer.Character
+local hrp = char and char:FindFirstChild("HumanoidRootPart")
+if hrp then
+local p = hrp.Position
+title.Text = string.format("Teleport — %.2f, %.2f, %.2f", p.X, p.Y, p.Z)
+end
+else
+title.Text = "Teleport — paste coords and press Run"
+end
+end)
+createToggle("Auto-Save Last Pos", "AutoSaveLastPosition", settingsFrame)
+createToggle("Infinite Jump", "InfiniteJump", settingsFrame)
+createToggle("Super Speed", "SuperSpeed", settingsFrame, function(enabled)
+local char = LocalPlayer.Character
+local hum = char and char:FindFirstChild("Humanoid")
+if hum then
+hum.WalkSpeed = enabled and 100 or 16
+end
+end)
+createToggle("High Jump", "HighJump", settingsFrame, function(enabled)
+local char = LocalPlayer.Character
+local hum = char and char:FindFirstChild("Humanoid")
+if hum then
+hum.JumpPower = enabled and 200 or 50
+end
+end)
+createToggle("Log Teleports", "LogTeleports", settingsFrame)
+
+local formatFrame = Instance.new("Frame")
+formatFrame.Size = UDim2.new(1, -8, 0, 28)
+formatFrame.BackgroundTransparency = 1
+formatFrame.Parent = settingsFrame
+
+local formatLabel = Instance.new("TextLabel")
+formatLabel.Size = UDim2.new(0, 80, 1, 0)
+formatLabel.BackgroundTransparency = 1
+formatLabel.Font = Enum.Font.Gotham
+formatLabel.TextSize = 12
+formatLabel.TextXAlignment = Enum.TextXAlignment.Left
+formatLabel.Text = "Copy Format:"
+formatLabel.TextColor3 = Color3.fromRGB(235,235,235)
+formatLabel.Parent = formatFrame
+
+local formatDropdown = Instance.new("TextButton")
+formatDropdown.Size = UDim2.new(0, 100, 1, 0)
+formatDropdown.Position = UDim2.new(0, 85, 0, 0)
+formatDropdown.BackgroundColor3 = Color3.fromRGB(70, 70, 75)
+formatDropdown.Text = Settings.CopyFormat:upper()
+formatDropdown.Font = Enum.Font.Gotham
+formatDropdown.TextSize = 12
+formatDropdown.TextColor3 = Color3.fromRGB(235,235,235)
+local formatCorner = Instance.new("UICorner", formatDropdown)
+formatCorner.CornerRadius = UDim.new(0, 6)
+formatDropdown.Parent = formatFrame
+
+local formats = {"xyz", "cframe", "json", "lua"}
+local formatIndex = 1
+for i, v in ipairs(formats) do
+if v == Settings.CopyFormat then
+formatIndex = i
+break
+end
+end
+formatDropdown.MouseButton1Click:Connect(function()
+formatIndex = formatIndex % #formats + 1
+Settings.CopyFormat = formats[formatIndex]
+formatDropdown.Text = Settings.CopyFormat:upper()
+end)
+
+local quickLabel = Instance.new("TextLabel")
+quickLabel.Size = UDim2.new(1, -8, 0, 20)
+quickLabel.BackgroundTransparency = 1
+quickLabel.Font = Enum.Font.GothamBold
+quickLabel.TextSize = 13
+quickLabel.TextXAlignment = Enum.TextXAlignment.Left
+quickLabel.Text = "Quick Actions:"
+quickLabel.TextColor3 = Color3.fromRGB(100, 255, 150)
+quickLabel.Parent = settingsFrame
+
+local quickFrame = Instance.new("Frame")
+quickFrame.Size = UDim2.new(1, -8, 0, 30)
+quickFrame.BackgroundTransparency = 1
+quickFrame.Parent = settingsFrame
+
+local copyCurrentBtn = Instance.new("TextButton")
+copyCurrentBtn.Size = UDim2.new(0, 90, 1, 0)
+copyCurrentBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 75)
+copyCurrentBtn.Text = "Copy Current"
+copyCurrentBtn.Font = Enum.Font.Gotham
+copyCurrentBtn.TextSize = 11
+copyCurrentBtn.TextColor3 = Color3.fromRGB(235,235,235)
+local copyCurrentCorner = Instance.new("UICorner", copyCurrentBtn)
+copyCurrentCorner.CornerRadius = UDim.new(0, 6)
+copyCurrentBtn.Parent = quickFrame
+
+local tpToCameraBtn = Instance.new("TextButton")
+tpToCameraBtn.Size = UDim2.new(0, 90, 1, 0)
+tpToCameraBtn.Position = UDim2.new(0, 96, 0, 0)
+tpToCameraBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 75)
+tpToCameraBtn.Text = "TP to Camera"
+tpToCameraBtn.Font = Enum.Font.Gotham
+tpToCameraBtn.TextSize = 11
+tpToCameraBtn.TextColor3 = Color3.fromRGB(235,235,235)
+local tpToCameraCorner = Instance.new("UICorner", tpToCameraBtn)
+tpToCameraCorner.CornerRadius = UDim.new(0, 6)
+tpToCameraBtn.Parent = quickFrame
+
+local noclipBtn = Instance.new("TextButton")
+noclipBtn.Size = UDim2.new(0, 70, 1, 0)
+noclipBtn.Position = UDim2.new(0, 192, 0, 0)
+noclipBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 75)
+noclipBtn.Text = "Noclip"
+noclipBtn.Font = Enum.Font.Gotham
+noclipBtn.TextSize = 11
+noclipBtn.TextColor3 = Color3.fromRGB(235,235,235)
+local noclipCorner = Instance.new("UICorner", noclipBtn)
+noclipCorner.CornerRadius = UDim.new(0, 6)
+noclipBtn.Parent = quickFrame
+
+settingsFrame.CanvasSize = UDim2.new(0, 0, 0, settingsLayout.AbsoluteContentSize.Y + 20)
+
+local noclipEnabled = false
+local noclipConnection
+noclipBtn.MouseButton1Click:Connect(function()
+noclipEnabled = not noclipEnabled
+noclipBtn.BackgroundColor3 = noclipEnabled and Color3.fromRGB(55, 120, 255) or Color3.fromRGB(70, 70, 75)
+ 
+if noclipEnabled then
+noclipConnection = RunService.Stepped:Connect(function()
+local char = LocalPlayer.Character
+if char then
+for _, part in pairs(char:GetDescendants()) do
+if part:IsA("BasePart") then
+part.CanCollide = false
+end
+end
+end
+end)
+else
+if noclipConnection then
+noclipConnection:Disconnect()
+noclipConnection = nil
+end
+local char = LocalPlayer.Character
+if char then
+for _, part in pairs(char:GetDescendants()) do
+if part:IsA("BasePart") then
+part.CanCollide = true
+end
+end
+end
+end
+end)
+
+UserInputService.JumpRequest:Connect(function()
+if Settings.InfiniteJump then
+local char = LocalPlayer.Character
+local hum = char and char:FindFirstChild("Humanoid")
+if hum then
+hum:ChangeState(Enum.HumanoidStateType.Jumping)
+end
+end
+end)
+
+local function setupCharacter(char)
+local hum = char:WaitForChild("Humanoid")
+hum.WalkSpeed = Settings.SuperSpeed and 100 or 16
+hum.JumpPower = Settings.HighJump and 200 or 50
+
+hum.Died:Connect(function()
+local hrp = char:FindFirstChild("HumanoidRootPart")
+if hrp then
+lastDeathPosition = hrp.Position
+if Settings.LogTeleports then
+print("Saved death position: " .. tostring(lastDeathPosition))
+end
+end
+end)
+
+if Settings.SavePositionOnRespawn and lastDeathPosition then
+task.spawn(function()
+task.wait(1)
+local hrp = char:FindFirstChild("HumanoidRootPart")
+if hrp then
+hrp.CFrame = CFrame.new(lastDeathPosition) * hrp.CFrame.Rotation
+showPopup("Respawned at last death position", Color3.fromRGB(100, 255, 100))
+end
+end)
+end
+end
+
+LocalPlayer.CharacterAdded:Connect(setupCharacter)
+if LocalPlayer.Character then
+setupCharacter(LocalPlayer.Character)
+end
+
+copyCurrentBtn.MouseButton1Click:Connect(function()
+local char = LocalPlayer.Character
+local hrp = char and char:FindFirstChild("HumanoidRootPart")
+if not hrp then
+showPopup("No character found", Color3.fromRGB(255, 100, 100))
+return
+end
+ 
+local cf = hrp.CFrame
+local p = cf.Position
+local rx, ry, rz = getEuler(cf)
+local text = ""
+ 
+if Settings.CopyFormat == "xyz" then
+text = string.format("%.6f, %.6f, %.6f", p.X, p.Y, p.Z)
+elseif Settings.CopyFormat == "cframe" then
+text = string.format("CFrame.new(%.6f, %.6f, %.6f) * CFrame.Angles(%.6f, %.6f, %.6f)",
+p.X, p.Y, p.Z, rx, ry, rz)
+elseif Settings.CopyFormat == "json" then
+text = string.format('{"x": %.6f, "y": %.6f, "z": %.6f, "rx": %.6f, "ry": %.6f, "rz": %.6f}',
+p.X, p.Y, p.Z, math.deg(rx), math.deg(ry), math.deg(rz))
+elseif Settings.CopyFormat == "lua" then
+text = string.format("Vector3.new(%.6f, %.6f, %.6f)", p.X, p.Y, p.Z)
+end
+ 
+if setclipboard then
+setclipboard(text)
+showPopup("Copied: " .. Settings.CopyFormat:upper(), Color3.fromRGB(100, 255, 100))
+else
+print(text)
+showPopup("Printed to console", Color3.fromRGB(100, 255, 100))
+end
+end)
+
+tpToCameraBtn.MouseButton1Click:Connect(function()
+local camera = workspace.CurrentCamera
+local char = LocalPlayer.Character
+local hrp = char and char:FindFirstChild("HumanoidRootPart")
+if hrp and camera then
+local lookPos = camera.CFrame.Position + camera.CFrame.LookVector * 10
+local targetCf = CFrame.new(lookPos) * CFrame.Angles(0, math.atan2(camera.CFrame.LookVector.X, camera.CFrame.LookVector.Z), 0)
+tryTeleport(targetCf)
+end
+end)
+
+local presetsTitle = Instance.new("TextLabel")
+presetsTitle.Size = UDim2.new(0, 200, 0, 24)
+presetsTitle.Position = UDim2.new(0, 8, 0, 38)
+presetsTitle.BackgroundTransparency = 1
+presetsTitle.Font = Enum.Font.GothamBold
+presetsTitle.TextSize = 15
+presetsTitle.TextXAlignment = Enum.TextXAlignment.Left
+presetsTitle.Text = "Presets"
+presetsTitle.TextColor3 = Color3.fromRGB(230, 230, 230)
+presetsTitle.Parent = container
+
+local presetsFrame = Instance.new("ScrollingFrame")
+presetsFrame.Name = "PresetsFrame"
+presetsFrame.Size = UDim2.new(0, 200, 0, 90)
+presetsFrame.Position = UDim2.new(0, 8, 0, 62)
+presetsFrame.BackgroundColor3 = Color3.fromRGB(16, 18, 25)
+presetsFrame.BorderSizePixel = 0
+presetsFrame.ScrollBarThickness = 4
+presetsFrame.Parent = container
+
+local presetsCorner = Instance.new("UICorner", presetsFrame)
+presetsCorner.CornerRadius = UDim.new(0, 8)
+
+local presetsListLayout = Instance.new("UIListLayout", presetsFrame)
+presetsListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+presetsListLayout.Padding = UDim.new(0, 4)
+
+local presetsButtons = Instance.new("Frame")
+presetsButtons.Size = UDim2.new(0, 200, 0, 32)
+presetsButtons.Position = UDim2.new(0, 8, 0, 158)
+presetsButtons.BackgroundTransparency = 1
+presetsButtons.Parent = container
+
+local savePresetBtn = Instance.new("TextButton")
+savePresetBtn.Size = UDim2.fromOffset(60, 32)
+savePresetBtn.Position = UDim2.new(0, 0, 0, 0)
+savePresetBtn.Font = Enum.Font.GothamBold
+savePresetBtn.TextSize = 14
+savePresetBtn.Text = "Save"
+savePresetBtn.TextColor3 = Color3.fromRGB(235,235,235)
+savePresetBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 75)
+savePresetBtn.Parent = presetsButtons
+local saveCorner = Instance.new("UICorner", savePresetBtn)
+saveCorner.CornerRadius = UDim.new(0, 8)
+
+local copyPresetsBtn = Instance.new("TextButton")
+copyPresetsBtn.Size = UDim2.fromOffset(60, 32)
+copyPresetsBtn.Position = UDim2.new(0, 66, 0, 0)
+copyPresetsBtn.Font = Enum.Font.GothamBold
+copyPresetsBtn.TextSize = 14
+copyPresetsBtn.Text = "Copy"
+copyPresetsBtn.TextColor3 = Color3.fromRGB(235,235,235)
+copyPresetsBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 75)
+copyPresetsBtn.Parent = presetsButtons
+local copyCorner = Instance.new("UICorner", copyPresetsBtn)
+copyCorner.CornerRadius = UDim.new(0, 8)
+
+local deleteAllBtn = Instance.new("TextButton")
+deleteAllBtn.Size = UDim2.fromOffset(70, 32)
+deleteAllBtn.Position = UDim2.new(0, 132, 0, 0)
+deleteAllBtn.Font = Enum.Font.GothamBold
+deleteAllBtn.TextSize = 14
+deleteAllBtn.Text = "Delete All"
+deleteAllBtn.TextColor3 = Color3.fromRGB(235,235,235)
+deleteAllBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 75)
+deleteAllBtn.Parent = presetsButtons
+local deleteCorner = Instance.new("UICorner", deleteAllBtn)
+deleteCorner.CornerRadius = UDim.new(0, 8)
+
+local presets = {}
+local epsilon = 0.1
+local angleEpsilon = math.rad(1)
+
+local function getEuler(c)
+return c:ToEulerAnglesYXZ()
+end
+
+local function isSameCFrame(c1, c2)
+local p1 = c1.Position
+local p2 = c2.Position
+local rx1, ry1, rz1 = getEuler(c1)
+local rx2, ry2, rz2 = getEuler(c2)
+return (p1 - p2).Magnitude < epsilon and
+ math.abs(rx1 - rx2) < angleEpsilon and
+ math.abs(ry1 - ry2) < angleEpsilon and
+ math.abs(rz1 - rz2) < angleEpsilon
+end
+
+local function addPreset(cframe)
+for _, p in ipairs(presets) do
+if isSameCFrame(p.cframe, cframe) then
+return false
+end
+end
+table.insert(presets, {cframe = cframe})
+return true
+end
+
+local function refreshPresets()
+for _, child in ipairs(presetsFrame:GetChildren()) do
+if child:IsA("Frame") then
+child:Destroy()
+end
+end
+ 
+for i, p in ipairs(presets) do
+local presetFrame = Instance.new("Frame")
+presetFrame.Size = UDim2.new(1, 0, 0, 30)
+presetFrame.BackgroundTransparency = 1
+presetFrame.Parent = presetsFrame
+ 
+local label = Instance.new("TextLabel")
+label.Size = UDim2.new(1, -60, 1, 0)
+label.Position = UDim2.new(0, 0, 0, 0)
+label.BackgroundTransparency = 1
+label.Font = Enum.Font.Gotham
+label.TextSize = 12
+label.TextColor3 = Color3.fromRGB(235,235,235)
+label.TextXAlignment = Enum.TextXAlignment.Left
+label.TextTruncate = Enum.TextTruncate.AtEnd
+local px, py, pz = p.cframe.Position.X, p.cframe.Position.Y, p.cframe.Position.Z
+local rx, ry, rz = math.deg(getEuler(p.cframe))
+label.Text = string.format("%d: %.2f, %.2f, %.2f | %.1f°, %.1f°, %.1f°", i, px, py, pz, rx, ry, rz)
+label.Parent = presetFrame
+ 
+local runPresetBtn = Instance.new("TextButton")
+runPresetBtn.Size = UDim2.fromOffset(30, 24)
+runPresetBtn.Position = UDim2.new(1, -60, 0, 3)
+runPresetBtn.BackgroundColor3 = Color3.fromRGB(55, 120, 255)
+runPresetBtn.Font = Enum.Font.GothamBold
+runPresetBtn.TextSize = 12
+runPresetBtn.Text = "Run"
+runPresetBtn.TextColor3 = Color3.fromRGB(235,235,235)
+local runPresetCorner = Instance.new("UICorner", runPresetBtn)
+runPresetCorner.CornerRadius = UDim.new(0, 6)
+runPresetBtn.Parent = presetFrame
+ 
+local presetData = p
+runPresetBtn.MouseButton1Click:Connect(function()
+tryTeleport(presetData.cframe, true)
+end)
+ 
+local delPresetBtn = Instance.new("TextButton")
+delPresetBtn.Size = UDim2.fromOffset(24, 24)
+delPresetBtn.Position = UDim2.new(1, -26, 0, 3)
+delPresetBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 75)
+delPresetBtn.Font = Enum.Font.GothamBold
+delPresetBtn.TextSize = 12
+delPresetBtn.Text = "✕"
+delPresetBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
+local delPresetCorner = Instance.new("UICorner", delPresetBtn)
+delPresetCorner.CornerRadius = UDim.new(0, 6)
+delPresetBtn.Parent = presetFrame
+ 
+local currentIndex = i
+delPresetBtn.MouseButton1Click:Connect(function()
+table.remove(presets, currentIndex)
+refreshPresets()
+end)
+end
+presetsFrame.CanvasSize = UDim2.new(0, 0, 0, #presets * 34)
+end
+
+local function parseCoords(s)
+if not s then
+return nil, "no input"
+end
+local cleaned = s:gsub("[%(%)]",""):gsub(",", " "):gsub(";", " ")
+cleaned = cleaned:gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
+local parts = {}
+for token in string.gmatch(cleaned, "[^%s]+") do
+table.insert(parts, token)
+end
+if #parts < 3 then
+return nil, "need 3 numbers (x y z)"
+end
+local x = tonumber(parts[1])
+local y = tonumber(parts[2])
+local z = tonumber(parts[3])
+if not (x and y and z) then
+return nil, "invalid numbers"
+end
+return Vector3.new(x, y, z)
+end
+
+local function teleportTo(cf, force, tween)
+local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+if not char then return false, "no character" end
+local hrp = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChildWhichIsA("BasePart")
+if not hrp then return false, "no root part" end
+ 
+local oldCf = hrp.CFrame
+local ok, err = pcall(function()
+if tween then
+local tweenInfo = TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local tw = TweenService:Create(hrp, tweenInfo, {CFrame = cf})
+tw:Play()
+tw.Completed:Wait()
+else
+hrp.CFrame = cf
+end
+ 
+if force then
+local attempts = 0
+local maxAttempts = 20
+while attempts < maxAttempts do
+hrp.CFrame = cf
+task.wait(0.05)
+local currentPos = hrp.Position
+if (currentPos - cf.Position).Magnitude < 5 then
+break
+end
+attempts = attempts + 1
+end
+if attempts >= maxAttempts then
+return false, "failed after multiple attempts"
+end
+end
+end)
+ 
+if not ok then
+return false, tostring(err or "unknown error")
+end
+ 
+task.wait(0.5)
+local currentCf = hrp.CFrame
+local distToTarget = (currentCf.Position - cf.Position).Magnitude
+local distToOld = (currentCf.Position - oldCf.Position).Magnitude
+ 
+if distToTarget > 5 and distToOld < 5 then
+return false, "reverted"
+end
+return true
+end
+
+local function showPopup(text, textColor, fromTop)
+textColor = textColor or Color3.fromRGB(255, 255, 255)
+fromTop = fromTop or false
+local popupFrame = Instance.new("Frame")
+popupFrame.Name = "Popup"
+popupFrame.Size = UDim2.fromOffset(300, 40)
+if fromTop then
+popupFrame.Position = UDim2.new(0.5, 0, 0, -40)
+popupFrame.AnchorPoint = Vector2.new(0.5, 0)
+else
+popupFrame.Position = UDim2.new(0.5, 0, 1, -20)
+popupFrame.AnchorPoint = Vector2.new(0.5, 1)
+end
+popupFrame.BackgroundColor3 = Color3.fromRGB(24, 26, 35)
+popupFrame.BackgroundTransparency = 1
+popupFrame.BorderSizePixel = 0
+popupFrame.Parent = screenGui
+ 
+local popupCorner = Instance.new("UICorner", popupFrame)
+popupCorner.CornerRadius = UDim.new(0, 8)
+ 
+local popupLabel = Instance.new("TextLabel")
+popupLabel.Size = UDim2.new(1, 0, 1, 0)
+popupLabel.BackgroundTransparency = 1
+popupLabel.Text = text
+popupLabel.Font = Enum.Font.Gotham
+popupLabel.TextSize = 14
+popupLabel.TextColor3 = textColor
+popupLabel.TextTransparency = 1
+popupLabel.Parent = popupFrame
+ 
+local tweenInFrame = TweenService:Create(popupFrame, TweenInfo.new(0.3), {BackgroundTransparency = 0})
+local tweenInLabel = TweenService:Create(popupLabel, TweenInfo.new(0.3), {TextTransparency = 0})
+ 
+if fromTop then
+local tweenSlide = TweenService:Create(popupFrame, TweenInfo.new(0.3), {Position = UDim2.new(0.5, 0, 0, 20)})
+tweenSlide:Play()
+end
+tweenInFrame:Play()
+tweenInLabel:Play()
+ 
+task.delay(3, function()
+local tweenOutFrame = TweenService:Create(popupFrame, TweenInfo.new(0.3), {BackgroundTransparency = 1})
+local tweenOutLabel = TweenService:Create(popupLabel, TweenInfo.new(0.3), {TextTransparency = 1})
+tweenOutFrame:Play()
+tweenOutLabel:Play()
+tweenOutLabel.Completed:Connect(function()
+popupFrame:Destroy()
+end)
+end)
+end
+
+local function showConfirm(callback)
+local confirmFrame = Instance.new("Frame")
+confirmFrame.Name = "ConfirmPopup"
+confirmFrame.Size = UDim2.fromOffset(300, 120)
+confirmFrame.Position = UDim2.new(0.5, -150, 0.5, -60)
+confirmFrame.BackgroundColor3 = Color3.fromRGB(24, 26, 35)
+confirmFrame.BorderSizePixel = 0
+confirmFrame.Parent = screenGui
+ 
+local cfCorner = Instance.new("UICorner", confirmFrame)
+cfCorner.CornerRadius = UDim.new(0, 10)
+ 
+local msgLabel = Instance.new("TextLabel")
+msgLabel.Size = UDim2.new(1, -20, 0, 60)
+msgLabel.Position = UDim2.new(0, 10, 0, 10)
+msgLabel.BackgroundTransparency = 1
+msgLabel.Text = "This game has anti cheat teleport i cant teleport you it may cause a ban to you account DO YOU STILL WANNA CONTINUE?"
+msgLabel.Font = Enum.Font.Gotham
+msgLabel.TextSize = 14
+msgLabel.TextColor3 = Color3.fromRGB(235, 235, 235)
+msgLabel.TextWrapped = true
+msgLabel.Parent = confirmFrame
+ 
+local yesBtn = Instance.new("TextButton")
+yesBtn.Size = UDim2.fromOffset(100, 30)
+yesBtn.Position = UDim2.new(0, 40, 1, -40)
+yesBtn.Text = "Yes"
+yesBtn.TextColor3 = Color3.fromRGB(255, 0, 0)
+yesBtn.Font = Enum.Font.GothamBold
+yesBtn.TextSize = 16
+yesBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+yesBtn.Parent = confirmFrame
+local yCorner = Instance.new("UICorner", yesBtn)
+yCorner.CornerRadius = UDim.new(0, 6)
+ 
+local noBtn = Instance.new("TextButton")
+noBtn.Size = UDim2.fromOffset(100, 30)
+noBtn.Position = UDim2.new(1, -140, 1, -40)
+noBtn.Text = "No"
+noBtn.TextColor3 = Color3.fromRGB(0, 255, 0)
+noBtn.Font = Enum.Font.GothamBold
+noBtn.TextSize = 16
+noBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+noBtn.Parent = confirmFrame
+local nCorner = Instance.new("UICorner", noBtn)
+nCorner.CornerRadius = UDim.new(0, 6)
+ 
+yesBtn.MouseButton1Click:Connect(function()
+confirmFrame:Destroy()
+callback(true)
+end)
+noBtn.MouseButton1Click:Connect(function()
+confirmFrame:Destroy()
+callback(false)
+end)
+end
+
+function tryTeleport(cf, skipPresetAdd)
+if Settings.LogTeleports then
+print("Attempting teleport to: " .. tostring(cf))
+end
+local function performTeleport(force, tween)
+return teleportTo(cf, force, tween)
+end
+ 
+local function showSuccess()
+local pos = cf.Position
+local coordStr = string.format("%.3f, %.3f, %.3f", pos.X, pos.Y, pos.Z)
+showPopup("Teleported to (" .. coordStr .. ")", Color3.fromRGB(100, 255, 100))
+if Settings.LogTeleports then
+print("Teleport successful to: " .. coordStr)
+end
+ 
+if not skipPresetAdd and Settings.AutoAddPreset then
+if addPreset(cf) then
+refreshPresets()
+end
+end
+ 
+if Settings.AutoSaveLastPosition then
+if writefile then
+local data = {
+position = {pos.X, pos.Y, pos.Z},
+rotation = {getEuler(cf)},
+timestamp = os.time()
+}
+writefile("last_teleport_pos.json", game:GetService("HttpService"):JSONEncode(data))
+end
+end
+end
+ 
+if hasAntiCheat then
+if Settings.AntiCheatWarning then
+showConfirm(function(yes)
+if yes then
+local ok, terr = performTeleport(true, Settings.TweenTeleport)
+if ok then
+showSuccess()
+else
+showPopup("Teleport failed: " .. tostring(terr), Color3.fromRGB(255, 100, 100))
+end
+end
+end)
+else
+local ok, terr = performTeleport(true, Settings.TweenTeleport)
+if ok then
+showSuccess()
+else
+showPopup("Teleport failed: " .. tostring(terr), Color3.fromRGB(255, 100, 100))
+end
+end
+else
+local ok, terr = performTeleport(Settings.ForceTeleport, Settings.TweenTeleport)
+if ok then
+showSuccess()
+elseif terr == "reverted" then
+hasAntiCheat = true
+if Settings.AntiCheatWarning then
+showConfirm(function(yes)
+if yes then
+local ok, terr = performTeleport(true, Settings.TweenTeleport)
+if ok then
+showSuccess()
+else
+showPopup("Teleport failed: " .. tostring(terr), Color3.fromRGB(255, 100, 100))
+end
+end
+end)
+else
+local ok, terr = performTeleport(true, Settings.TweenTeleport)
+if ok then
+showSuccess()
+else
+showPopup("Teleport failed: " .. tostring(terr), Color3.fromRGB(255, 100, 100))
+end
+end
+else
+showPopup("Teleport failed: " .. tostring(terr), Color3.fromRGB(255, 100, 100))
+end
+end
+end
+
+local function tryRun()
+local v3, err = parseCoords(inputBox.Text)
+if not v3 then
+showPopup("Error: " .. err, Color3.fromRGB(255, 100, 100))
+return
+end
+local char = LocalPlayer.Character
+local hrp = char and char:FindFirstChild("HumanoidRootPart")
+if not hrp then
+showPopup("Error: no HumanoidRootPart", Color3.fromRGB(255, 100, 100))
+return
+end
+local currentRotation = hrp.CFrame.Rotation
+local targetCf = CFrame.new(v3) * currentRotation
+tryTeleport(targetCf)
+end
+
+updBtn.MouseButton1Click:Connect(function()
+local char = LocalPlayer.Character
+local hrp = char and char:FindFirstChild("HumanoidRootPart")
+if not hrp then
+showPopup("Error: no HumanoidRootPart", Color3.fromRGB(255, 100, 100))
+return
+end
+local p = hrp.Position
+local fadeOut = TweenService:Create(inputBox, TweenInfo.new(0.2), {TextTransparency = 1})
+fadeOut:Play()
+fadeOut.Completed:Connect(function()
+inputBox.Text = string.format("%.6f, %.6f, %.6f", p.X, p.Y, p.Z)
+local fadeIn = TweenService:Create(inputBox, TweenInfo.new(0.2), {TextTransparency = 0})
+fadeIn:Play()
+showPopup("Position Updated", Color3.fromRGB(100, 255, 100))
+end)
+end)
+
+playersBtn.MouseButton1Click:Connect(function()
+settingsFrame.Visible = false
+dropdownFrame.Visible = not dropdownFrame.Visible
+local targetHeight = 200
+if dropdownFrame.Visible then targetHeight = targetHeight + 100 end
+TweenService:Create(container, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {Size = UDim2.fromOffset(600, targetHeight)}):Play()
+ 
+if not dropdownFrame.Visible then return end
+ 
+for _, child in ipairs(dropdownFrame:GetChildren()) do
+if child:IsA("TextButton") then child:Destroy() end
+end
+ 
+local players = Players:GetPlayers()
+for _, player in ipairs(players) do
+local btn = Instance.new("TextButton")
+btn.Size = UDim2.new(1, 0, 0, 30)
+btn.BackgroundColor3 = Color3.fromRGB(24, 26, 35)
+btn.Text = player.Name
+btn.Font = Enum.Font.Gotham
+btn.TextSize = 14
+btn.TextColor3 = Color3.fromRGB(235, 235, 235)
+local btnCorner = Instance.new("UICorner", btn)
+btnCorner.CornerRadius = UDim.new(0, 6)
+btn.Parent = dropdownFrame
+ 
+btn.MouseButton1Click:Connect(function()
+local char = player.Character
+local hrp = char and char:FindFirstChild("HumanoidRootPart")
+if hrp then
+local p = hrp.Position
+inputBox.Text = string.format("%.6f, %.6f, %.6f", p.X, p.Y, p.Z)
+showPopup("Set to " .. player.Name .. "'s position", Color3.fromRGB(100, 255, 100))
+else
+showPopup("Player has no position", Color3.fromRGB(255, 100, 100))
+end
+dropdownFrame.Visible = false
+TweenService:Create(container, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {Size = UDim2.fromOffset(600, 200)}):Play()
+end)
+end
+local num = #players
+dropdownFrame.CanvasSize = UDim2.new(0, 0, 0, num * 32)
+end)
+
+settingsBtn.MouseButton1Click:Connect(function()
+dropdownFrame.Visible = false
+settingsFrame.Visible = not settingsFrame.Visible
+local targetHeight = 200
+if settingsFrame.Visible then targetHeight = targetHeight + 140 end
+TweenService:Create(container, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {Size = UDim2.fromOffset(600, targetHeight)}):Play()
+end)
+
+runBtn.MouseButton1Click:Connect(tryRun)
+inputBox.FocusLost:Connect(function(enterPressed)
+if enterPressed then tryRun() end
+end)
+
+savePresetBtn.MouseButton1Click:Connect(function()
+local v3, err = parseCoords(inputBox.Text)
+if not v3 then
+showPopup("Error: " .. err, Color3.fromRGB(255, 100, 100))
+return
+end
+local char = LocalPlayer.Character
+local hrp = char and char:FindFirstChild("HumanoidRootPart")
+if not hrp then
+showPopup("Error: no HumanoidRootPart", Color3.fromRGB(255, 100, 100))
+return
+end
+local currentRotation = hrp.CFrame.Rotation
+local targetCf = CFrame.new(v3) * currentRotation
+if addPreset(targetCf) then
+refreshPresets()
+showPopup("Preset Saved", Color3.fromRGB(100, 255, 100))
+else
+showPopup("Position already saved!", Color3.fromRGB(255, 200, 100))
+end
+end)
+
+copyPresetsBtn.MouseButton1Click:Connect(function()
+local strs = {}
+for _, p in ipairs(presets) do
+local px, py, pz = p.cframe.Position.X, p.cframe.Position.Y, p.cframe.Position.Z
+local rx, ry, rz = math.deg(getEuler(p.cframe))
+table.insert(strs, string.format("%.6f, %.6f, %.6f | %.1f, %.1f, %.1f", px, py, pz, rx, ry, rz))
+end
+local text = table.concat(strs, "\n")
+if setclipboard then
+setclipboard(text)
+showPopup("Presets copied to clipboard", Color3.fromRGB(100, 255, 100))
+else
+print("Presets:\n" .. text)
+showPopup("Presets printed to console", Color3.fromRGB(100, 255, 100))
+end
+end)
+
+deleteAllBtn.MouseButton1Click:Connect(function()
+presets = {}
+refreshPresets()
+showPopup("All presets deleted", Color3.fromRGB(100, 255, 100))
+end)
+
+closeBtn.MouseButton1Click:Connect(function()
+screenGui:Destroy()
+end)
+
+local minimized = false
+miniBtn.MouseButton1Click:Connect(function()
+minimized = not minimized
+if minimized then
+for _,v in pairs(container:GetChildren()) do
+if v ~= header and v ~= title and v ~= closeBtn and v ~= miniBtn and v ~= settingsBtn and v:IsA("TextBox") == false then
+v.Visible = false
+end
+end
+inputBox.Visible = false
+dropdownFrame.Visible = false
+settingsFrame.Visible = false
+local tween = TweenService:Create(container, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {Size = UDim2.fromOffset(600, 36)})
+tween:Play()
+miniBtn.Text = "+"
+else
+for _,v in pairs(container:GetChildren()) do
+v.Visible = true
+end
+local tween = TweenService:Create(container, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {Size = UDim2.fromOffset(600, 200)})
+tween:Play()
+miniBtn.Text = "—"
+end
+end)
+
+do
+local dragging, dragInput, dragStart, startPos
+local function update(input)
+local delta = input.Position - dragStart
+container.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+header.InputBegan:Connect(function(input)
+if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+dragging = true
+dragStart = input.Position
+startPos = container.Position
+input.Changed:Connect(function()
+if input.UserInputState == Enum.UserInputState.End then
+dragging = false
+end
+end)
+end
+end)
+header.InputChanged:Connect(function(input)
+if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+dragInput = input
+end
+end)
+UserInputService.InputChanged:Connect(function(input)
+if input == dragInput and dragging then
+update(input)
+end
+end)
+end
+
+spawn(function()
+while true do
+if Settings.AutoUpdatePos then
+local char = LocalPlayer.Character
+local hrp = char and char:FindFirstChild("HumanoidRootPart")
+if hrp then
+inputBox.Text = string.format("%.6f, %.6f, %.6f", hrp.Position.X, hrp.Position.Y, hrp.Position.Z)
+end
+end
+ 
+if Settings.ShowCoordinatesInTitle then
+local char = LocalPlayer.Character
+local hrp = char and char:FindFirstChild("HumanoidRootPart")
+if hrp then
+local p = hrp.Position
+title.Text = string.format("Teleport — %.2f, %.2f, %.2f", p.X, p.Y, p.Z)
+end
+end
+ 
+task.wait(0.5)
+end
+end)
+
+local function setInitialPosition()
+local char = LocalPlayer.Character
+local hrp = char and char:FindFirstChild("HumanoidRootPart")
+if hrp then
+local p = hrp.Position
+inputBox.Text = string.format("%.6f, %.6f, %.6f", p.X, p.Y, p.Z)
+else
+LocalPlayer.CharacterAdded:Wait()
+task.wait(0.2)
+local char2 = LocalPlayer.Character
+local hrp2 = char2 and char2:FindFirstChild("HumanoidRootPart")
+if hrp2 then
+local p2 = hrp2.Position
+inputBox.Text = string.format("%.6f, %.6f, %.6f", p2.X, p2.Y, p2.Z)
+end
+end
+end
+setInitialPosition()
+showPopup("Simple Teleport Coordination By Diablo", Color3.fromRGB(100, 255, 100), true)
