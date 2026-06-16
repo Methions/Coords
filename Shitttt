@@ -12,21 +12,18 @@ local CONFIG = {
     PingThreshold = 200,
     HopCooldown = 10,
     AutoExecuteEnabled = true,
-    LoadstringURL = "YOUR_LOADSTRING_URL_HERE", 
+    LoadstringURL = "https://raw.githubusercontent.com/Methions/Coords/refs/heads/main/Shitttt",
 }
 
 local function setupAutoExecute()
     pcall(function()
         if queue_on_teleport then
             queue_on_teleport([[
-                -- Auto-execute on teleport
-                -- This will re-run the script after server hop
-                local loadstringURL = "YOUR_LOADSTRING_URL_HERE"
-                if loadstringURL and loadstringURL ~= "YOUR_LOADSTRING_URL_HERE" then
-                    pcall(function()
-                        loadstring(game:HttpGet(loadstringURL))()
-                    end)
-                end
+                -- Auto-execute on ANY teleport (server hop, new game, etc.)
+                local loadstringURL = "https://raw.githubusercontent.com/Methions/Coords/refs/heads/main/Shitttt"
+                pcall(function()
+                    loadstring(game:HttpGet(loadstringURL))()
+                end)
             ]])
         end
     end)
@@ -375,7 +372,6 @@ RunService.Heartbeat:Connect(function()
         StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
     end
 end)
-
 
 local function applyFpsUnlocker()
     pcall(function()
