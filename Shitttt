@@ -8,16 +8,35 @@ local UserInputService = game:GetService("UserInputService")
 
 local LocalPlayer = Players.LocalPlayer
 
+-- Load saved config or use defaults
+local savedConfig = {}
+pcall(function()
+    if getgenv().PingMonitorConfig then
+        savedConfig = getgenv().PingMonitorConfig
+    end
+end)
+
 local CONFIG = {
-    PingThreshold = 200,
-    HopCooldown = 10,
-    AutoExecuteEnabled = true,
+    PingThreshold = savedConfig.PingThreshold or 200,
+    HopCooldown = savedConfig.HopCooldown or 10,
+    AutoExecuteEnabled = savedConfig.AutoExecuteEnabled ~= nil and savedConfig.AutoExecuteEnabled or true,
     LoadstringURL = "https://raw.githubusercontent.com/Methions/Coords/refs/heads/main/Shitttt",
 }
 
+-- Save config function
+local function saveConfig()
+    pcall(function()
+        getgenv().PingMonitorConfig = {
+            PingThreshold = CONFIG.PingThreshold,
+            HopCooldown = CONFIG.HopCooldown,
+            AutoExecuteEnabled = CONFIG.AutoExecuteEnabled,
+        }
+    end)
+end
+
 local function setupAutoExecute()
     pcall(function()
-        if queue_on_teleport then
+        if queue_on_teleport and CONFIG.AutoExecuteEnabled then
             queue_on_teleport([[
                 -- Auto-execute on ANY teleport (server hop, new game, etc.)
                 local loadstringURL = "https://raw.githubusercontent.com/Methions/Coords/refs/heads/main/Shitttt"
@@ -29,7 +48,10 @@ local function setupAutoExecute()
     end)
 end
 
-setupAutoExecute()
+-- Only setup auto-execute if enabled
+if CONFIG.AutoExecuteEnabled then
+    setupAutoExecute()
+end
 
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "PingMonitorGui"
@@ -195,6 +217,7 @@ updateToggleVisual(CONFIG.AutoExecuteEnabled)
 
 local function toggleAutoExecute()
     CONFIG.AutoExecuteEnabled = not CONFIG.AutoExecuteEnabled
+    saveConfig()
     updateToggleVisual(CONFIG.AutoExecuteEnabled)
 
     if CONFIG.AutoExecuteEnabled then
@@ -306,12 +329,43 @@ end)
 
 local isHopping = false
 local lastHopTime = 0
+local pingReady = false
+local readyCheckStart = tick()
 
+-- Improved ping detection with fallback methods
 local function getPing()
     local ping = 0
+
+    -- Method 1: GetNetworkPing (most accurate when available)
     pcall(function()
-        ping = LocalPlayer:GetNetworkPing() * 1000
+        if LocalPlayer and LocalPlayer:GetNetworkPing() then
+            ping = LocalPlayer:GetNetworkPing() * 1000
+        end
     end)
+
+    -- Method 2: Stats-based ping calculation
+    if ping <= 0 then
+        pcall(function()
+            local stats = game:GetService("Stats")
+            if stats and stats.Network then
+                local serverStats = stats.Network.ServerStatsItem
+                if serverStats and serverStats["Data Ping"] then
+                    ping = serverStats["Data Ping"]:GetValue()
+                end
+            end
+        end)
+    end
+
+    -- Method 3: Round-trip time estimation
+    if ping <= 0 then
+        pcall(function()
+            local startTime = tick()
+            -- Force a network round-trip by reading a replicated value
+            local _ = workspace:GetRealPhysicsFPS()
+            ping = (tick() - startTime) * 1000
+        end)
+    end
+
     return math.floor(ping)
 end
 
@@ -352,8 +406,56 @@ local function serverHop()
     isHopping = false
 end
 
+-- Wait for network to be ready before checking ping
+local function waitForNetworkReady()
+    local attempts = 0
+    local maxAttempts = 30 -- Max 3 seconds wait
+
+    while attempts < maxAttempts do
+        local testPing = 0
+        pcall(function()
+            testPing = LocalPlayer:GetNetworkPing() * 1000
+        end)
+
+        if testPing > 0 then
+            pingReady = true
+            return true
+        end
+
+        attempts = attempts + 1
+        task.wait(0.1)
+    end
+
+    -- If we timeout, still mark as ready and use fallback
+    pingReady = true
+    return false
+end
+
+-- Start network readiness check in background
+task.spawn(function()
+    waitForNetworkReady()
+end)
+
 RunService.Heartbeat:Connect(function()
     local ping = getPing()
+
+    -- Show "Connecting..." until network is ready and we have valid ping
+    if not pingReady and ping <= 0 then
+        PingLabel.Text = "Ping: Connecting..."
+        PingLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
+        StatusLabel.Text = "Status: Initializing"
+        StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
+        return
+    end
+
+    -- If ping is still 0 after network ready, show N/A instead of 0
+    if ping <= 0 then
+        PingLabel.Text = "Ping: N/A"
+        PingLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
+        StatusLabel.Text = "Status: Checking..."
+        StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
+        return
+    end
 
     PingLabel.Text = "Ping: " .. ping .. " ms"
 
